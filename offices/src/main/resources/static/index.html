@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام إشغال الأبراج</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#F6F2EA; --surface:#FFFFFF; --surface-tint:#FAF7F0;
+  --ink:#2A2318; --ink-soft:#6B6152; --ink-faint:#A2988A; --line:#E9E1D1;
+  --brand-1:#C9A64F; --brand-2:#B08A33; --brand-grad:linear-gradient(135deg,var(--brand-1),var(--brand-2));
+  --on-brand:#2A2114; --accent:#8F6F25; --accent-bg:#F5ECD6;
+  --vacant:#4A8559; --vacant-bg:#E5F0E6;
+  --occupied:#B24A38; --occupied-bg:#F6E3DE;
+  --reserved:#5B7595; --reserved-bg:#E6ECF3;
+  --shadow-sm:0 1px 2px rgba(42,35,24,.07); --shadow-md:0 8px 24px rgba(42,35,24,.10);
+  --shadow-brand:0 6px 18px rgba(176,138,51,.32);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'IBM Plex Sans Arabic',sans-serif;background:var(--canvas);color:var(--ink);font-size:14px}
+button,select,input{font-family:inherit}
+.topbar{display:flex;align-items:center;gap:12px;padding:16px 26px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.logo-mark{width:34px;height:34px;border-radius:10px;background:var(--brand-grad);color:var(--on-brand);display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:var(--shadow-brand)}
+.topbar h2{font-size:17px;margin:0}
+.spacer{flex:1}
+.topbar input{width:250px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface-tint)}
+.content{padding:24px 26px}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 16px;box-shadow:var(--shadow-sm)}
+.toolbar select{padding:8px 11px;border-radius:9px;border:1px solid var(--line);background:var(--surface-tint)}
+.btn{padding:9px 16px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--surface)}
+.btn-primary{background:var(--brand-grad);color:var(--on-brand);border-color:transparent;box-shadow:var(--shadow-brand)}
+.btn-danger{color:var(--occupied);border-color:var(--occupied)}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:#FBF3DE;border:1px solid #D9BE7A;border-top:3px solid var(--brand-1);border-radius:12px;padding:17px 16px;box-shadow:var(--shadow-sm)}
+.stat-card b{display:block;font-size:23px}
+.stat-card span{font-size:12px;color:var(--ink-soft)}
+.table-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto;box-shadow:var(--shadow-sm)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:start;padding:11px 12px;background:var(--surface-tint);color:var(--ink-soft);font-size:11.5px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:hover td{background:var(--surface-tint)}
+.badge{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700}
+.badge.VACANT{background:var(--vacant-bg);color:var(--vacant)}
+.badge.RENTED{background:var(--occupied-bg);color:var(--occupied)}
+.badge.RESERVED{background:var(--reserved-bg);color:var(--reserved)}
+.days{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.days.green{background:#E3F1E4;color:#2E7D32}
+.days.red{background:#FBE4E1;color:#C62828}
+.link{background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;font-size:12.5px;padding:0 4px}
+.empty{padding:40px;text-align:center;color:var(--ink-soft)}
+.overlay{display:none;position:fixed;inset:0;background:rgba(42,35,24,.55);align-items:center;justify-content:center;padding:16px}
+.overlay.open{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:420px;border-radius:16px;max-height:90vh;overflow-y:auto}
+.sheet-head{padding:18px 20px;border-bottom:1px solid var(--line);background:var(--surface-tint)}
+.sheet-head h3{margin:0;font-size:15.5px}
+.sheet-body{padding:18px 20px 0}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
+.field input,.field select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-tint)}
+.actions{display:flex;gap:8px;padding:18px 20px}
+.actions button{flex:1}
+@media(max-width:760px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-mark">ر</div>
+  <h2>لوحة التحكم</h2>
+  <div class="spacer"></div>
+  <input type="text" id="search" placeholder="ابحث برقم الدور، المكتب، أو المستأجر" oninput="render()">
+</div>
+
+<div class="content">
+  <div class="toolbar">
+    <select id="towerFilter" onchange="render()"></select>
+    <select id="statusFilter" onchange="render()">
+      <option value="all">كل الحالات</option>
+      <option value="VACANT">شاغر</option>
+      <option value="RENTED">مؤجر</option>
+      <option value="RESERVED">محجوز</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openForm()">+ إضافة مكتب</button>
+  </div>
+
+  <div class="stats-row" id="stats"></div>
+
+  <div class="table-card">
+    <table>
+      <thead><tr>
+        <th>البرج</th><th>الدور</th><th>المكتب</th><th>الجناح</th><th>المساحة</th>
+        <th>الحالة</th><th>المستأجر</th><th>يبدأ في</th><th>ينتهي في</th><th>المتبقي من العقد</th><th></th>
+      </tr></thead>
+      <tbody id="tableBody"><tr><td colspan="11" class="empty">جارٍ التحميل...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- نافذة الإضافة والتعديل -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-head"><h3 id="formTitle">إضافة مكتب</h3></div>
+    <div class="sheet-body">
+      <div class="field"><label>البرج</label><select id="f_tower"></select></div>
+      <div class="field"><label>رقم الدور</label><input type="number" id="f_floor"></div>
+      <div class="field"><label>رقم المكتب</label><input type="text" id="f_unit"></div>
+      <div class="field"><label>الجناح</label><input type="text" id="f_wing" placeholder="A / B / A&B"></div>
+      <div class="field"><label>المساحة (م²)</label><input type="number" id="f_area"></div>
+      <div class="field"><label>الحالة</label>
+        <select id="f_status">
+          <option value="VACANT">شاغر</option>
+          <option value="RENTED">مؤجر</option>
+          <option value="RESERVED">محجوز</option>
+        </select></div>
+      <div class="field"><label>اسم المستأجر</label><input type="text" id="f_tenant"></div>
+      <div class="field"><label>تاريخ بداية العقد</label><input type="date" id="f_start"></div>
+      <div class="field"><label>تاريخ انتهاء العقد</label><input type="date" id="f_end"></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-danger" id="delBtn" onclick="deleteOffice()">حذف</button>
+      <button class="btn" onclick="closeForm()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveForm()">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   1) الإعدادات
+   ============================================================ */
+const API = '/offices';   // نفس السيرفر، فما نحتاج نكتب localhost
+const TOWERS = ['سكاي تاور - الشمالي', 'سكاي تاور - الجنوبي', 'عجلان بلازا'];
+const STATUS_LABEL = { VACANT: 'شاغر', RENTED: 'مؤجر', RESERVED: 'محجوز' };
+const RED_DAYS = 70;      // أقل من 70 يوم = أحمر
+
+let offices = [];
+let editingId = null;
+
+/* ============================================================
+   2) جلب المكاتب من Spring Boot
+   ============================================================ */
+async function loadOffices() {
+  const res = await fetch(API);            // GET /offices
+  offices = await res.json();
+  render();
+}
+
+/* ============================================================
+   3) العرض
+   ============================================================ */
+function render() {
+  const tower = document.getElementById('towerFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const q = document.getElementById('search').value.trim().toLowerCase();
+
+  // البطاقات تتبع البرج المختار
+  const scope = tower === 'all' ? offices : offices.filter(o => o.tower === tower);
+  const count = s => scope.filter(o => o.status === s).length;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><b>${scope.length}</b><span>إجمالي المكاتب</span></div>
+    <div class="stat-card"><b>${count('VACANT')}</b><span>شاغر</span></div>
+    <div class="stat-card"><b>${count('RENTED')}</b><span>مؤجر</span></div>
+    <div class="stat-card"><b>${count('RESERVED')}</b><span>محجوز</span></div>`;
+
+  // الجدول يتبع كل الفلاتر
+  let rows = scope;
+  if (status !== 'all') rows = rows.filter(o => o.status === status);
+  if (q) rows = rows.filter(o =>
+    String(o.floorNumber).includes(q) ||
+    (o.officeNumber || '').toLowerCase().includes(q) ||
+    (o.tenantName || '').toLowerCase().includes(q));
+  rows.sort((a, b) => TOWERS.indexOf(a.tower) - TOWERS.indexOf(b.tower) || b.floorNumber - a.floorNumber);
+
+  const body = document.getElementById('tableBody');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="11" class="empty">لا توجد نتائج</td></tr>'; return; }
+
+  body.innerHTML = rows.map(o => `
+    <tr>
+      <td>${o.tower}</td>
+      <td>${o.floorNumber}</td>
+      <td>${o.officeNumber}</td>
+      <td>${o.wing || '—'}</td>
+      <td>${o.area ? o.area + ' m²' : '—'}</td>
+      <td><span class="badge ${o.status}">${STATUS_LABEL[o.status] || o.status}</span></td>
+      <td>${o.tenantName || '—'}</td>
+      <td>${o.startDate || '—'}</td>
+      <td>${o.endDate || '—'}</td>
+      <td>${daysCell(o.endDate)}</td>
+      <td>
+        ${o.status === 'VACANT' ? `<button class="link" onclick="rentOffice(${o.id})">تأجير</button>` : ''}
+        <button class="link" onclick="editOffice(${o.id})">تعديل</button>
+      </td>
+    </tr>`).join('');
+}
+
+/* المتبقي من العقد: نحسبه من تاريخ النهاية وتاريخ اليوم */
+function daysCell(end) {
+  if (!end) return '—';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(end + 'T00:00:00') - today) / 86400000);
+  const text = days < 0 ? `منتهي منذ ${-days} يوم` : days === 0 ? 'ينتهي اليوم' : `${days} يوم`;
+  return `<span class="days ${days <= RED_DAYS ? 'red' : 'green'}">${text}</span>`;
+}
+
+/* ============================================================
+   4) التأجير: يستخدم القاعدة اللي في OfficeService
+   ============================================================ */
+async function rentOffice(id) {
+  const name = prompt('اسم المستأجر:');
+  if (!name) return;
+  const res = await fetch(`${API}/${id}/rent?tenantName=${encodeURIComponent(name)}`, { method: 'PUT' });
+  if (!res.ok) { alert('ما تم التأجير: المكتب مؤجر أصلًا'); }
+  loadOffices();
+}
+
+/* ============================================================
+   5) الإضافة والتعديل والحذف
+   ============================================================ */
+function fillTowers() {
+  const opts = TOWERS.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('towerFilter').innerHTML = '<option value="all">كل الأبراج</option>' + opts;
+  document.getElementById('f_tower').innerHTML = opts;
+}
+
+function openForm() {
+  editingId = null;
+  document.getElementById('formTitle').textContent = 'إضافة مكتب';
+  ['f_floor', 'f_unit', 'f_wing', 'f_area', 'f_tenant', 'f_start', 'f_end'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_status').value = 'VACANT';
+  document.getElementById('delBtn').style.display = 'none';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function editOffice(id) {
+  const o = offices.find(x => x.id === id);
+  editingId = id;
+  document.getElementById('formTitle').textContent = 'تعديل المكتب';
+  document.getElementById('f_tower').value = o.tower;
+  document.getElementById('f_floor').value = o.floorNumber ?? '';
+  document.getElementById('f_unit').value = o.officeNumber ?? '';
+  document.getElementById('f_wing').value = o.wing ?? '';
+  document.getElementById('f_area').value = o.area ?? '';
+  document.getElementById('f_status').value = o.status;
+  document.getElementById('f_tenant').value = o.tenantName ?? '';
+  document.getElementById('f_start').value = o.startDate ?? '';
+  document.getElementById('f_end').value = o.endDate ?? '';
+  document.getElementById('delBtn').style.display = 'block';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeForm() { document.getElementById('overlay').classList.remove('open'); }
+
+async function saveForm() {
+  const v = id => document.getElementById(id).value.trim();
+  if (!v('f_floor') || !v('f_unit')) { alert('أدخل رقم الدور ورقم المكتب'); return; }
+
+  // نفس أسماء المتغيرات اللي في Office.java
+  const office = {
+    tower: v('f_tower'),
+    floorNumber: Number(v('f_floor')),
+    officeNumber: v('f_unit'),
+    wing: v('f_wing') || null,
+    area: v('f_area') ? Number(v('f_area')) : null,
+    status: v('f_status'),
+    tenantName: v('f_tenant') || null,
+    startDate: v('f_start') || null,
+    endDate: v('f_end') || null
+  };
+
+  const res = await fetch(editingId ? `${API}/${editingId}` : API, {
+    method: editingId ? 'PUT' : 'POST',     // تعديل أو إضافة
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(office)
+  });
+  if (!res.ok) { alert('صار خطأ في الحفظ'); return; }
+  closeForm();
+  loadOffices();
+}
+
+async function deleteOffice() {
+  if (!confirm('متأكد تبي تحذف هذا المكتب؟')) return;
+  await fetch(`${API}/${editingId}`, { method: 'DELETE' });
+  closeForm();
+  loadOffices();
+}
+
+/* ============================================================
+   6) البداية
+   ============================================================ */
+fillTowers();
+loadOffices();
+</script>
+</body>
+</html>
